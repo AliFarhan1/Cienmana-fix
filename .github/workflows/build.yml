@@ -25,32 +25,31 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew install make ldid xz
+          brew install make ldid
           gmake --version
           xcode-select -p
+          xcrun --sdk iphoneos --show-sdk-path
 
       - name: Setup Theos
         run: |
           git clone --recursive https://github.com/theos/theos.git "$THEOS"
-          mkdir -p "$THEOS/sdks"
-          curl -L https://github.com/theos/sdks/releases/download/2024-10-27/iPhoneOS17.5.sdk.tar.xz -o sdk.tar.xz
-          tar -xJf sdk.tar.xz -C "$THEOS/sdks/"
-          echo "Installed SDKs:"
-          ls -la "$THEOS/sdks/"
+          ls -la "$THEOS"
 
       - name: Build dylib
         run: |
           cd "${{ github.workspace }}"
+          export SDKROOT=$(xcrun --sdk iphoneos --show-sdk-path)
           gmake clean 2>/dev/null || true
           gmake \
             THEOS="$THEOS" \
             THEOS_MAKE_PATH="$THEOS/makefiles" \
-            TARGET="iphone:clang:17.5:14.0" \
+            TARGET="iphone:clang:latest:14.0" \
             ARCHS="arm64" \
             DEBUG=0 \
-            FINALPACKAGE=0
-          echo "Built dylibs:"
-          find . -name "*.dylib" -exec ls -lh {} \;
+            FINALPACKAGE=0 \
+            SDKROOT="$SDKROOT"
+          echo "Built files:"
+          find . -name "*.dylib" -o -name "*.deb" | xargs ls -lh || true
 
       - name: Upload dylib
         uses: actions/upload-artifact@v4
