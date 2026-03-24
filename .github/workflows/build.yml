@@ -17,30 +17,40 @@ jobs:
       run: brew install ldid xz make
 
     - name: Setup Theos
-      run: |
-        git clone --recursive https://github.com/theos/theos.git $THEOS
-        curl -fsSL https://github.com/theos/sdks/releases/download/2024-10-27/iPhoneOS17.5.sdk.tar.xz \
-          | tar -xJf - -C $THEOS/sdks/
       env:
         THEOS: ${{ github.workspace }}/theos
+      run: |
+        git clone --recursive https://github.com/theos/theos.git "$THEOS"
+        mkdir -p "$THEOS/sdks"
+        curl -fsSL https://github.com/theos/sdks/releases/download/2024-10-27/iPhoneOS17.5.sdk.tar.xz \
+          | tar -xJf - -C "$THEOS/sdks/"
+
+    - name: Show files
+      run: |
+        pwd
+        ls -la
+        find . -maxdepth 3 -type f
 
     - name: Build dylib
+      env:
+        THEOS: ${{ github.workspace }}/theos
       run: |
-        cd ${{ github.workspace }}/cinemana-tweak-v3
+        cd "${{ github.workspace }}"
         gmake clean 2>/dev/null || true
         gmake \
-          THEOS=${{ github.workspace }}/theos \
-          THEOS_MAKE_PATH=${{ github.workspace }}/theos/makefiles \
+          THEOS="${{ github.workspace }}/theos" \
+          THEOS_MAKE_PATH="${{ github.workspace }}/theos/makefiles" \
           TARGET="iphone:clang:17.5:14.0" \
           ARCHS="arm64" \
           DEBUG=0
-        find . -name "*.dylib" | xargs ls -lh
-      env:
-        THEOS: ${{ github.workspace }}/theos
+        find . -name "*.dylib" -exec ls -lh {} \;
 
     - name: Upload dylib
       uses: actions/upload-artifact@v4
       with:
         name: CinemanaFix_dylib
-        path: ${{ github.workspace }}/cinemana-tweak-v3/.theos/obj/CinemanaFix.dylib
+        path: |
+          ${{ github.workspace }}/.theos/obj/*.dylib
+          ${{ github.workspace }}/.theos/obj/debug/*.dylib
+          ${{ github.workspace }}/.theos/obj/release/*.dylib
         retention-days: 30
