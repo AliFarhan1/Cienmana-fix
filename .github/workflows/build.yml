@@ -1,0 +1,46 @@
+name: Build CinemanaFix Dylib
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: brew install ldid xz make
+
+    - name: Setup Theos
+      run: |
+        git clone --recursive https://github.com/theos/theos.git $THEOS
+        curl -fsSL https://github.com/theos/sdks/releases/download/2024-10-27/iPhoneOS17.5.sdk.tar.xz \
+          | tar -xJf - -C $THEOS/sdks/
+      env:
+        THEOS: ${{ github.workspace }}/theos
+
+    - name: Build dylib
+      run: |
+        cd ${{ github.workspace }}/cinemana-tweak-v3
+        gmake clean 2>/dev/null || true
+        gmake \
+          THEOS=${{ github.workspace }}/theos \
+          THEOS_MAKE_PATH=${{ github.workspace }}/theos/makefiles \
+          TARGET="iphone:clang:17.5:14.0" \
+          ARCHS="arm64" \
+          DEBUG=0
+        find . -name "*.dylib" | xargs ls -lh
+      env:
+        THEOS: ${{ github.workspace }}/theos
+
+    - name: Upload dylib
+      uses: actions/upload-artifact@v4
+      with:
+        name: CinemanaFix_dylib
+        path: ${{ github.workspace }}/cinemana-tweak-v3/.theos/obj/CinemanaFix.dylib
+        retention-days: 30
