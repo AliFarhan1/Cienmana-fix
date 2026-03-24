@@ -1,8 +1,9 @@
 Package: com.yourname.cinemanafix
 Name: CinemanaFix
-Version: 3.0.0
-Architecture: iphoneos-arm64
-Description: Fixes large file download saving - background session fix
-Maintainer: YourName
-Author: YourName
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Cinemana domain fix tweak
+Maintainer: Your Name
+Author: Your Name
 Section: Tweaks
+Depends: mobilesubstrate
