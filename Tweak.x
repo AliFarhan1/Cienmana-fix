@@ -14,6 +14,9 @@
 @property (nonatomic, assign) BOOL directFileDownload;
 @end
 
+@interface NotSubscriberViewController : UIViewController
+@end
+
 %hook NSURLSessionConfiguration
 
 + (NSURLSessionConfiguration *)backgroundSessionConfigurationWithIdentifier:(NSString *)identifier {
@@ -111,6 +114,17 @@
 - (void)setDownloadProgress:(double)p {
     %orig(p);
     if (p >= 1.0) [self setDownloadStatus:2];
+}
+%end
+
+%hook NotSubscriberViewController
+- (void)viewDidLoad {
+    %orig;
+    [self dismissViewControllerAnimated:NO completion:nil];
+}
+- (void)viewDidAppear:(BOOL)animated {
+    %orig(animated);
+    [self dismissViewControllerAnimated:NO completion:nil];
 }
 %end
 
