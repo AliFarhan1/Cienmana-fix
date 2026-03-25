@@ -68,33 +68,6 @@ static NSString *fixDomain(NSString *str) {
 }
 %end
 
-%hook NSURLSessionConfiguration
-+ (NSURLSessionConfiguration *)backgroundSessionConfigurationWithIdentifier:(NSString *)identifier {
-    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
-    config.allowsCellularAccess = YES;
-    config.timeoutIntervalForRequest = 0;
-    config.timeoutIntervalForResource = 0;
-    config.HTTPMaximumConnectionsPerHost = 4;
-    return config;
-}
-%end
-
-%hook NSURLSession
-+ (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration
-                                  delegate:(id)delegate
-                             delegateQueue:(NSOperationQueue *)queue {
-    if (configuration.identifier) {
-        NSURLSessionConfiguration *c = [NSURLSessionConfiguration defaultSessionConfiguration];
-        c.allowsCellularAccess = YES;
-        c.timeoutIntervalForRequest = 0;
-        c.timeoutIntervalForResource = 0;
-        c.HTTPMaximumConnectionsPerHost = 4;
-        return %orig(c, delegate, queue);
-    }
-    return %orig(configuration, delegate, queue);
-}
-%end
-
 %hook NSFileManager
 - (BOOL)moveItemAtURL:(NSURL *)srcURL toURL:(NSURL *)dstURL error:(NSError **)error {
     NSString *dst = dstURL.path;
