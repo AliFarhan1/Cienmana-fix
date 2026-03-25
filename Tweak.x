@@ -1,6 +1,14 @@
+واضح - الـ CinemanaTweak.dylib الأصلي يعمل بشكل صحيح. المشكلة في الكود الجديد.
+الفرق بين الاثنين هو أن الـ dylib الأصلي يستخدم Method Swizzling يدوي وليس Theos %hook. دعني أفحص الـ dylib الأصلي بدقة:​​​​​​​​​​​​​​​​
+
+الصورة واضحة الآن. الـ dylib الأصلي يستخدم Method Swizzling يدوي ويضيف recommend.shabakaty.com أيضاً. الفرق الجوهري هو أن Theos %hook NSURL يتدخل في كل الـ URLs بما فيها urls الـ authentication، بينما الـ dylib الأصلي يعمل بشكل أدق.
+الحل: نكتب الكود بـ Method Swizzling يدوي مثل الـ dylib الأصلي تماماً وبدون Theos hooks على NSURL:
+
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>
 
+// ─── Forward declarations ───
 @interface MovieDetailsViewController : UIViewController
 @property (nonatomic, assign) BOOL directFileDownload;
 @end
@@ -13,6 +21,7 @@
 @property (nonatomic, assign) double downloadProgress;
 @end
 
+// ─── Domain fix ───
 static NSString *fixDomain(NSString *str) {
     if (!str) return str;
     str = [str stringByReplacingOccurrencesOfString:@"https://cinemana.shabakaty.com" withString:@"https://cinemana.shabakaty.cc"];
@@ -20,27 +29,34 @@ static NSString *fixDomain(NSString *str) {
     str = [str stringByReplacingOccurrencesOfString:@"https://share.shabakaty.com" withString:@"https://share.shabakaty.cc"];
     str = [str stringByReplacingOccurrencesOfString:@"https://account.shabakaty.com" withString:@"https://account.shabakaty.cc"];
     str = [str stringByReplacingOccurrencesOfString:@"https://updates.shabakaty.com" withString:@"https://updates.shabakaty.cc"];
+    str = [str stringByReplacingOccurrencesOfString:@"https://recommend.shabakaty.com" withString:@"https://recommend.shabakaty.cc"];
     return str;
 }
 
-%hook NSURL
-+ (instancetype)URLWithString:(NSString *)URLString {
-    return %orig(fixDomain(URLString));
+// ─── Swizzled methods ───
+static NSURL *(*orig_URLWithString)(id, SEL, NSString *) = NULL;
+static NSURL *ct_URLWithString(id self, SEL _cmd, NSString *str) {
+    return orig_URLWithString(self, _cmd, fixDomain(str));
 }
-+ (instancetype)URLWithString:(NSString *)URLString relativeToURL:(NSURL *)baseURL {
-    return %orig(fixDomain(URLString), baseURL);
-}
-- (instancetype)initWithString:(NSString *)URLString {
-    return %orig(fixDomain(URLString));
-}
-%end
 
-%hook NSMutableURLRequest
-- (instancetype)initWithURL:(NSURL *)URL {
-    return %orig([NSURL URLWithString:fixDomain(URL.absoluteString)]);
+static NSURL *(*orig_URLWithStringRelative)(id, SEL, NSString *, NSURL *) = NULL;
+static NSURL *ct_URLWithStringRelative(id self, SEL _cmd, NSString *str, NSURL *base) {
+    return orig_URLWithStringRelative(self, _cmd, fixDomain(str), base);
 }
-%end
 
+static id (*orig_initWithURL)(id, SEL, NSURL *) = NULL;
+static id ct_initWithURL(id self, SEL _cmd, NSURL *url) {
+    NSString *fixed = fixDomain(url.absoluteString);
+    return orig_initWithURL(self, _cmd, [NSURL URLWithString:fixed]);
+}
+
+static id (*orig_initWithURLCachePolicy)(id, SEL, NSURL *, NSURLRequestCachePolicy, NSTimeInterval) = NULL;
+static id ct_initWithURLCachePolicy(id self, SEL _cmd, NSURL *url, NSURLRequestCachePolicy policy, NSTimeInterval timeout) {
+    NSString *fixed = fixDomain(url.absoluteString);
+    return orig_initWithURLCachePolicy(self, _cmd, [NSURL URLWithString:fixed], policy, timeout);
+}
+
+// ─── Download fix hooks ───
 %hook NotSubscriberViewController
 - (void)viewDidLoad {
     %orig;
@@ -53,12 +69,8 @@ static NSString *fixDomain(NSString *str) {
 %end
 
 %hook MovieDetailsViewController
-- (BOOL)directFileDownload {
-    return YES;
-}
-- (void)setDirectFileDownload:(BOOL)v {
-    %orig(YES);
-}
+- (BOOL)directFileDownload { return YES; }
+- (void)setDirectFileDownload:(BOOL)v { %orig(YES); }
 %end
 
 %hook DMRFile
@@ -108,8 +120,35 @@ static NSString *fixDomain(NSString *str) {
 }
 %end
 
+// ─── Constructor ───
 %ctor {
     NSLog(@"[CinemanaFix] Loaded");
+
+    // Domain swizzling يدوي مثل CinemanaTweak الأصلي
+    Class urlClass = [NSURL class];
+    Class reqClass = [NSMutableURLRequest class];
+
+    Method m1 = class_getClassMethod(urlClass, @selector(URLWithString:));
+    orig_URLWithString = (void *)method_getImplementation(m1);
+    class_replaceMethod(object_getClass(urlClass), @selector(URLWithString:),
+                        (IMP)ct_URLWithString, method_getTypeEncoding(m1));
+
+    Method m2 = class_getClassMethod(urlClass, @selector(URLWithString:relativeToURL:));
+    orig_URLWithStringRelative = (void *)method_getImplementation(m2);
+    class_replaceMethod(object_getClass(urlClass), @selector(URLWithString:relativeToURL:),
+                        (IMP)ct_URLWithStringRelative, method_getTypeEncoding(m2));
+
+    Method m3 = class_getInstanceMethod(reqClass, @selector(initWithURL:));
+    orig_initWithURL = (void *)method_getImplementation(m3);
+    class_replaceMethod(reqClass, @selector(initWithURL:),
+                        (IMP)ct_initWithURL, method_getTypeEncoding(m3));
+
+    Method m4 = class_getInstanceMethod(reqClass, @selector(initWithURL:cachePolicy:timeoutInterval:));
+    orig_initWithURLCachePolicy = (void *)method_getImplementation(m4);
+    class_replaceMethod(reqClass, @selector(initWithURL:cachePolicy:timeoutInterval:),
+                        (IMP)ct_initWithURLCachePolicy, method_getTypeEncoding(m4));
+
+    // DOWNLOADEDFILES directory
     dispatch_async(dispatch_get_main_queue(), ^{
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
         NSString *dir = [[paths firstObject] stringByAppendingPathComponent:@"DOWNLOADEDFILES"];
