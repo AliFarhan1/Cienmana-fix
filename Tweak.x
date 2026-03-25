@@ -1,19 +1,9 @@
 #import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
-
-@interface MovieDetailsViewController : UIViewController
-@property (nonatomic, assign) BOOL directFileDownload;
-@end
 
 @interface DMRFile : NSObject
 @property (nonatomic, assign) NSInteger downloadStatus;
 @property (nonatomic, assign) double downloadProgress;
 @end
-
-%hook MovieDetailsViewController
-- (BOOL)directFileDownload { return YES; }
-- (void)setDirectFileDownload:(BOOL)v { %orig(YES); }
-%end
 
 %hook DMRFile
 - (void)setDownloadProgress:(double)p {
@@ -64,10 +54,4 @@
 
 %ctor {
     NSLog(@"[CinemanaFix] Loaded");
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-        NSString *dir = [[paths firstObject] stringByAppendingPathComponent:@"DOWNLOADEDFILES"];
-        if (![[NSFileManager defaultManager] fileExistsAtPath:dir])
-            [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
-    });
 }
